@@ -1,0 +1,527 @@
+# 新人エンジニア向け：VSCodeでPython自動化を始めよう
+
+## はじめに
+
+新人エンジニアの皆さん、手作業での繰り返し作業に疲れていませんか？今回は、VSCodeとPythonを使って、実際の業務でよくあるExcelのVLOOKUP作業を自動化する方法を学びましょう。単なる理論ではなく、実際に動くツールを一緒に作りながら、自動化スキルを身につけていきます。
+
+## 目次
+1. [なぜPython自動化なのか？](#なぜpython自動化なのか)
+2. [VSCode環境構築](#vscode環境構築)
+3. [実践：Excel VLOOKUPツールを作ろう](#実践-excel-vlookupツールを作ろう)
+4. [VSCodeの便利機能](#vscodeの便利機能)
+5. [レベルアップのヒント](#レベルアップのヒント)
+
+## なぜPython自動化なのか？
+
+### 🔄 こんな作業、していませんか？
+- Excelで毎日同じVLOOKUP作業
+- CSVファイルの手動整理
+- データの転記・集計作業
+- レポート作成の繰り返し
+
+### ✨ 自動化のメリット
+- **時間節約**: 5分の作業が1秒に
+- **ミス削減**: 人的エラーの撲滅
+- **価値創造**: 単純作業から戦略的業務へシフト
+- **スキルアップ**: エンジニアとしての価値向上
+
+## VSCode環境構築
+
+### 1. 必要なソフトウェア
+```bash
+# Python 3.8以上をインストール
+# https://www.python.org/downloads/
+
+# VSCodeをインストール
+# https://code.visualstudio.com/
+```
+
+### 2. VSCode拡張機能
+必須の拡張機能をインストールしましょう：
+
+```
+- Python (Microsoft)
+- Pylance (Microsoft)
+- Python Debugger (Microsoft)
+- autoDocstring - Python Docstring Generator
+- Bracket Pair Colorizer 2
+```
+
+### 3. プロジェクトセットアップ
+```bash
+# プロジェクトフォルダ作成
+mkdir python-automation
+cd python-automation
+
+# 仮想環境作成（推奨）
+python -m venv venv
+
+# 仮想環境有効化
+# Windows
+venv\Scripts\activate
+# Mac/Linux
+source venv/bin/activate
+
+# 必要なライブラリインストール
+pip install pandas openpyxl
+```
+
+## 実践：Excel VLOOKUPツールを作ろう
+
+### 🎯 作るものの概要
+ExcelのVLOOKUP機能をPythonで自動化し、複数のファイルを一括処理できるツールを作成します。
+
+### ステップ1: 基本クラスの設計
+
+```python
+#!/usr/bin/env python3
+"""
+Excelファイルのパスとタブ名（シート名）を指定してVLOOKUPを実行するツール
+"""
+
+import pandas as pd
+import os
+from datetime import datetime
+
+class ExcelSheetVLOOKUP:
+    def __init__(self):
+        """初期化：データ格納用の変数を準備"""
+        self.excel1_df = None  # 検索対象データ
+        self.excel2_df = None  # マスタデータ
+        self.result_df = None  # 結果データ
+```
+
+**新人向けPoint💡**
+- クラス設計により、データと処理をまとめて管理
+- `__init__`メソッドで初期状態を定義
+- インスタンス変数でデータを保持
+
+### ステップ2: Excelファイル読み込み機能
+
+```python
+def read_excel_sheet(self, file_path, sheet_name):
+    """Excelファイルの指定シートを読み込み"""
+    try:
+        # ファイル存在確認
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"ファイルが見つかりません: {file_path}")
+
+        # シート一覧取得
+        xl_file = pd.ExcelFile(file_path)
+        sheet_names = xl_file.sheet_names
+        print(f"利用可能なシート: {sheet_names}")
+
+        # シート名確認（フェイルセーフ機能）
+        if sheet_name not in sheet_names:
+            print(f"警告: シート'{sheet_name}'が見つかりません")
+            sheet_name = sheet_names[0]  # 最初のシートを使用
+            print(f"代わりに'{sheet_name}'シートを使用します")
+
+        # データ読み込み
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
+        print(f"読み込み完了: {file_path} - {sheet_name}")
+        print(f"データサイズ: {df.shape[0]}行 x {df.shape[1]}列")
+        
+        return df
+
+    except Exception as e:
+        print(f"読み込みエラー: {e}")
+        return None
+```
+
+**新人向けPoint💡**
+- エラーハンドリングで堅牢性を確保
+- ユーザーフレンドリーなメッセージ出力
+- フェイルセーフ機能（シートが見つからない場合の代替処理）
+
+### ステップ3: 出力ファイルパス生成
+
+```python
+def generate_output_path(self, excel1_path, suffix="vlookup_result"):
+    """入力ファイルと同じディレクトリに出力ファイルパスを生成"""
+    # 入力ファイルのディレクトリとファイル名を取得
+    dir_path = os.path.dirname(os.path.abspath(excel1_path))
+    base_name = os.path.splitext(os.path.basename(excel1_path))[0]
+
+    # タイムスタンプ付きファイル名生成
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_filename = f"{base_name}_{suffix}_{timestamp}.xlsx"
+    output_path = os.path.join(dir_path, output_filename)
+
+    # 重複回避（同じ秒に複数実行された場合）
+    counter = 1
+    while os.path.exists(output_path):
+        output_filename = f"{base_name}_{suffix}_{timestamp}_{counter:02d}.xlsx"
+        output_path = os.path.join(dir_path, output_filename)
+        counter += 1
+
+    return output_path
+```
+
+**新人向けPoint💡**
+- ファイル名の重複を自動回避
+- タイムスタンプでファイルを識別
+- 元ファイルと同じディレクトリに保存（使いやすさを考慮）
+
+### ステップ4: メインのVLOOKUP処理
+
+```python
+def vlookup_with_sheets(self, config):
+    """シート指定でVLOOKUP実行"""
+    print("=== Excel VLOOKUP 処理開始 ===")
+
+    try:
+        # Excel1読み込み（検索対象データ）
+        df1 = self.read_excel_sheet(config["excel1_path"], config["excel1_sheet"])
+        if df1 is None:
+            return False
+        
+        # Excel2読み込み（マスタデータ）
+        df2 = self.read_excel_sheet(config["excel2_path"], config["excel2_sheet"])
+        if df2 is None:
+            return False
+
+        # 設定値の取得
+        search_col = config["search_col"]    # 検索キー列
+        lookup_col = config["lookup_col"]    # マスタ検索キー列
+        return_cols = config["return_cols"]  # 取得したい列
+
+        # データ型を文字列に統一（検索精度向上）
+        df1[search_col] = df1[search_col].astype(str)
+        df2[lookup_col] = df2[lookup_col].astype(str)
+
+        # マスタデータの重複削除
+        master_cols = [lookup_col] + return_cols
+        df2_filtered = df2[master_cols].copy()
+        df2_filtered = df2_filtered.drop_duplicates(subset=[lookup_col])
+
+        # VLOOKUP実行（pandasのmerge機能を使用）
+        result = df1.merge(
+            df2_filtered, 
+            left_on=search_col, 
+            right_on=lookup_col, 
+            how="left"
+        )
+
+        # 結果の確認と表示
+        matched_count = result[return_cols[0]].notna().sum()
+        unmatched_count = len(result) - matched_count
+        
+        print(f"処理完了!")
+        print(f"総データ数: {len(result)}行")
+        print(f"マッチ成功: {matched_count}行")
+        print(f"マッチ失敗: {unmatched_count}行")
+
+        # 結果保存
+        output_path = self.save_result_to_same_directory(result, config["excel1_path"])
+        
+        return True
+
+    except Exception as e:
+        print(f"エラーが発生しました: {e}")
+        return False
+```
+
+**新人向けPoint💡**
+- pandasの`merge`機能でVLOOKUPを実現
+- データ型統一でマッチング精度向上
+- 処理結果の統計情報表示
+
+### ステップ5: 簡単実行用の関数
+
+```python
+def quick_sheet_vlookup(excel1_path, excel1_sheet, excel2_path, excel2_sheet, 
+                       search_col, lookup_col, return_cols, auto_save_same_dir=True):
+    """
+    簡単実行用の関数
+    
+    使用例:
+    quick_sheet_vlookup(
+        excel1_path="注文データ.xlsx",
+        excel1_sheet="注文",
+        excel2_path="商品マスタ.xlsx", 
+        excel2_sheet="商品",
+        search_col="商品コード",
+        lookup_col="商品コード", 
+        return_cols=["商品名", "価格"],
+        auto_save_same_dir=True
+    )
+    """
+    tool = ExcelSheetVLOOKUP()
+    
+    config = {
+        "excel1_path": excel1_path,
+        "excel1_sheet": excel1_sheet,
+        "excel2_path": excel2_path,
+        "excel2_sheet": excel2_sheet,
+        "search_col": search_col,
+        "lookup_col": lookup_col,
+        "return_cols": return_cols,
+        "auto_save_same_dir": auto_save_same_dir
+    }
+    
+    return tool.vlookup_with_sheets(config)
+```
+
+### 実際の使用例
+
+```python
+# 実際の業務での使用例
+if __name__ == "__main__":
+    # 注文データに商品情報を追加
+    quick_sheet_vlookup(
+        excel1_path="注文データ_20241201.xlsx",
+        excel1_sheet="注文リスト",
+        excel2_path="商品マスタ.xlsx",
+        excel2_sheet="商品情報",
+        search_col="商品コード",
+        lookup_col="商品コード",
+        return_cols=["商品名", "単価", "カテゴリ"]
+    )
+    
+    # 売上データに営業担当者情報を追加
+    quick_sheet_vlookup(
+        excel1_path="売上実績.xlsx",
+        excel1_sheet="売上データ",
+        excel2_path="営業マスタ.xlsx",
+        excel2_sheet="営業担当",
+        search_col="営業ID",
+        lookup_col="営業ID",
+        return_cols=["営業担当名", "部署", "目標金額"]
+    )
+```
+
+## VSCodeの便利機能
+
+### 1. デバッグ機能の活用
+
+**ブレークポイントの設置**
+```python
+def vlookup_with_sheets(self, config):
+    print("=== Excel VLOOKUP 処理開始 ===")
+    
+    # ここにブレークポイントを設置
+    df1 = self.read_excel_sheet(config["excel1_path"], config["excel1_sheet"])
+    
+    # 変数の中身を確認しながらデバッグ
+    if df1 is None:
+        return False
+```
+
+**VSCodeでのデバッグ手順：**
+1. 行番号の左をクリックしてブレークポイント設置
+2. `F5`でデバッグ開始
+3. `F10`でステップオーバー
+4. `F11`でステップイン
+5. 変数ウィンドウで値を確認
+
+### 2. コードスニペット
+
+よく使うコードをスニペット化しましょう：
+
+**settings.json（ユーザー設定）**
+```json
+{
+    "python.snippets": {
+        "pandas_read": {
+            "prefix": "pd_read",
+            "body": [
+                "try:",
+                "    df = pd.read_excel('${1:file_path}', sheet_name='${2:sheet_name}')",
+                "    print(f'読み込み完了: {df.shape[0]}行 x {df.shape[1]}列')",
+                "except Exception as e:",
+                "    print(f'エラー: {e}')",
+                "    df = None"
+            ],
+            "description": "pandas Excel読み込み"
+        }
+    }
+}
+```
+
+### 3. Linting（コード品質チェック）
+
+**settings.json**
+```json
+{
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": ["--line-length=88"]
+}
+```
+
+### 4. Git統合
+
+VSCodeのGit機能を活用：
+```bash
+# プロジェクトをGit管理
+git init
+git add .
+git commit -m "初回コミット: Excel VLOOKUPツール作成"
+
+# .gitignoreファイル作成
+echo "*.pyc" > .gitignore
+echo "__pycache__/" >> .gitignore
+echo "venv/" >> .gitignore
+echo "*.xlsx" >> .gitignore  # 作業ファイルは除外
+```
+
+## レベルアップのヒント
+
+### 1. エラーハンドリングの改善
+
+```python
+# 悪い例
+def read_file(path):
+    return pd.read_excel(path)
+
+# 良い例
+def read_file(path):
+    try:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"ファイルが見つかりません: {path}")
+        
+        df = pd.read_excel(path)
+        
+        if df.empty:
+            raise ValueError("ファイルにデータがありません")
+            
+        return df
+        
+    except FileNotFoundError as e:
+        print(f"ファイルエラー: {e}")
+        return None
+    except Exception as e:
+        print(f"予期しないエラー: {e}")
+        return None
+```
+
+### 2. ログ機能の追加
+
+```python
+import logging
+
+# ログ設定
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('vlookup_tool.log'),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+def vlookup_with_sheets(self, config):
+    logger.info("VLOOKUP処理開始")
+    try:
+        # 処理内容
+        logger.info(f"処理完了: {len(result)}行")
+        return True
+    except Exception as e:
+        logger.error(f"処理エラー: {e}")
+        return False
+```
+
+### 3. 設定ファイルの活用
+
+**config.yaml**
+```yaml
+# デフォルト設定
+default:
+  auto_save_same_dir: true
+  include_summary: true
+  
+# プロジェクト固有設定
+projects:
+  sales_analysis:
+    excel1_path: "売上データ.xlsx"
+    excel1_sheet: "月次売上"
+    excel2_path: "マスタ.xlsx"
+    excel2_sheet: "商品マスタ"
+    search_col: "商品コード"
+    lookup_col: "商品コード"
+    return_cols: ["商品名", "価格", "カテゴリ"]
+```
+
+### 4. テストコードの作成
+
+```python
+import unittest
+
+class TestVLOOKUPTool(unittest.TestCase):
+    def setUp(self):
+        self.tool = ExcelSheetVLOOKUP()
+    
+    def test_file_exists(self):
+        """ファイル存在チェックのテスト"""
+        result = self.tool.read_excel_sheet("存在しないファイル.xlsx", "Sheet1")
+        self.assertIsNone(result)
+    
+    def test_vlookup_basic(self):
+        """基本的なVLOOKUP処理のテスト"""
+        # テストデータ作成
+        # アサーション
+        pass
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### 5. パフォーマンス最適化
+
+```python
+import time
+from functools import wraps
+
+def timing_decorator(func):
+    """実行時間測定デコレータ"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(f"{func.__name__} 実行時間: {end - start:.2f}秒")
+        return result
+    return wrapper
+
+@timing_decorator
+def vlookup_with_sheets(self, config):
+    # VLOOKUP処理
+    pass
+```
+
+## まとめ
+
+### 🎯 今回学んだこと
+- VSCodeでのPython開発環境構築
+- 実践的なExcel自動化ツールの作成
+- エラーハンドリングとユーザビリティの重要性
+- デバッグ技術とコード品質管理
+
+### 🚀 次のステップ
+1. **GUI化**: Tkinter や Streamlit でユーザーインターフェース作成
+2. **Web化**: Flask や FastAPI でWebアプリケーション化
+3. **バッチ処理**: タスクスケジューラーと連携した自動実行
+4. **クラウド化**: AWS Lambda や Google Cloud Functions での実行
+
+### 💡 実務での活用アイデア
+- 月次レポート自動生成
+- データ品質チェックツール
+- ファイル形式一括変換
+- メール送信自動化
+- データベース連携ツール
+
+### 📚 おすすめ学習リソース
+- **公式ドキュメント**: pandas, openpyxl
+- **書籍**: 「退屈なことはPythonにやらせよう」
+- **コミュニティ**: Stack Overflow, Qiita
+- **実践**: 自分の業務から小さな自動化を始める
+
+---
+
+**Remember**: 完璧を目指さず、まずは動くものを作ることから始めましょう。小さな自動化の積み重ねが、大きな価値を生み出します。頑張って！ 💪
+
+*この記事が役に立ったら、ぜひ実際に手を動かして試してみてください。質問があれば、いつでもお気軽にどうぞ！*
